@@ -1,4 +1,7 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings):
     app_name: str = "Event-Driven Recommender"
@@ -6,6 +9,6 @@ class Settings(BaseSettings):
     database_url: str
 
     class Config:
-        env_file = ".env"
+        env_file = BASE_DIR / "backend" / ".env"
 
 settings = Settings()
