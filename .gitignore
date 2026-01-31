@@ -1,17 +1,42 @@
+# =========================
 # Python
+# =========================
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.so
+*.egg-info/
+.eggs/
 
-# Virtual env
+# Virtual environments
 venv/
 .env
+.env.*
 
-# IDE
-.vscode/
-.idea/
+# =========================
+# FastAPI / Logs
+# =========================
+*.log
 
-# OS
+# =========================
+# Node / Next.js
+# =========================
+node_modules/
+.next/
+out/
+dist/
+
+# =========================
+# OS / Editor
+# =========================
 .DS_Store
 Thumbs.db
+
+# VS Code
+.vscode/
+
+# =========================
+# ML artifacts (later)
+# =========================
+ml/artifacts/
