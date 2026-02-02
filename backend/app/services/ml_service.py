@@ -3,28 +3,38 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import coo_matrix
 
-# Load CF model
+from backend.app.services.realtime_boost import get_recent_boosts
+
+
+# =========================
+# 1️⃣ LOAD MODELS
+# =========================
+
+# Collaborative Filtering model
 with open("ml/artifacts/cf_model.pkl", "rb") as f:
     cf_model = pickle.load(f)
 
-# Load content similarity
-with open("ml/artifacts/content_similarity.pkl","rb") as f:
+# Content similarity matrix
+with open("ml/artifacts/content_similarity.pkl", "rb") as f:
     similarity = pickle.load(f)
 
 
-# Load ratings to build user-item matrix
+# =========================
+# 2️⃣ LOAD RATINGS DATA
+# =========================
+
 ratings = pd.read_csv(
     "ml/data/ml-100k/u.data",
     sep="\t",
-    names=["user","item","rating","timestamp"]
+    names=["user", "item", "rating", "timestamp"]
 )
 
-# zero-index
+# Zero-index IDs for implicit
 ratings["user"] -= 1
 ratings["item"] -= 1
 
-num_users = ratings["user"].max()+1
-num_items = ratings["item"].max()+1
+num_users = ratings["user"].max() + 1
+num_items = ratings["item"].max() + 1
 
 matrix = coo_matrix(
     (ratings["rating"],
@@ -33,8 +43,13 @@ matrix = coo_matrix(
 ).tocsr()
 
 
+# =========================
+# 3️⃣ CF ONLY RECOMMENDER
+# =========================
+
 def recommend_for_user(user_id: int, k: int = 10):
-    recs, scores = cf_model.recommend(
+
+    recs, _ = cf_model.recommend(
         user_id,
         matrix[user_id],
         N=k
@@ -42,10 +57,19 @@ def recommend_for_user(user_id: int, k: int = 10):
 
     return list(map(int, recs))
 
-def hybrid_recommend(user_id: int, k: int = 10, alpha: float = 0.7):
+
+# =========================
+# 4️⃣ HYBRID + REALTIME
+# =========================
+
+def hybrid_recommend(
+    user_id: int,
+    k: int = 10,
+    alpha: float = 0.7
+):
 
     # --------------------
-    # 1️⃣ CF recommendations (with scores)
+    # CF SCORES
     # --------------------
     cf_items, cf_scores = cf_model.recommend(
         user_id,
@@ -55,11 +79,13 @@ def hybrid_recommend(user_id: int, k: int = 10, alpha: float = 0.7):
 
     cf_scores = dict(zip(cf_items, cf_scores))
 
-    max_cf = max(cf_scores.values())
-    cf_scores = {i: s / max_cf for i, s in cf_scores.items()}
+    if cf_scores:
+        max_cf = max(cf_scores.values())
+        if max_cf > 0:
+            cf_scores = {i: s / max_cf for i, s in cf_scores.items()}
 
     # --------------------
-    # 2️⃣ Content-based scores
+    # CONTENT SCORES
     # --------------------
     user_data = ratings[ratings.user == user_id]
     liked_items = user_data[user_data.rating >= 4]["item"].tolist()
@@ -72,18 +98,23 @@ def hybrid_recommend(user_id: int, k: int = 10, alpha: float = 0.7):
         for item_id, sim in enumerate(sims):
             if item_id == liked:
                 continue
-            cb_scores[item_id] = cb_scores.get(item_id, 0) + sim
+
+            cb_scores[item_id] = (
+                cb_scores.get(item_id, 0) + float(sim)
+            )
 
     if cb_scores:
         max_cb = max(cb_scores.values())
-        cb_scores = {i: s / max_cb for i, s in cb_scores.items()}
+        if max_cb > 0:
+            cb_scores = {i: s / max_cb for i, s in cb_scores.items()}
 
     # --------------------
-    # 3️⃣ Hybrid fusion
+    # FUSION
     # --------------------
     all_items = set(cf_scores) | set(cb_scores)
 
     hybrid_scores = {}
+
     for item in all_items:
         hybrid_scores[item] = (
             alpha * cf_scores.get(item, 0) +
@@ -91,7 +122,17 @@ def hybrid_recommend(user_id: int, k: int = 10, alpha: float = 0.7):
         )
 
     # --------------------
-    # 4️⃣ Rank
+    # REAL-TIME BOOSTS
+    # --------------------
+    boosts = get_recent_boosts(user_id)
+
+    for item, boost in boosts.items():
+        hybrid_scores[item] = (
+            hybrid_scores.get(item, 0) + 0.1 * boost
+        )
+
+    # --------------------
+    # RANK
     # --------------------
     ranked = sorted(
         hybrid_scores.items(),
