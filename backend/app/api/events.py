@@ -4,6 +4,9 @@ from backend.app.db.deps import get_db
 from backend.app.models.event import Event
 from backend.app.schemas.event import EventCreate, EventResponse
 from uuid import UUID
+from backend.app.services.cache import invalidate_user
+
+
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -26,6 +29,7 @@ def log_event(payload: EventCreate, db: Session = Depends(get_db)):
 
     db.add(event)
     db.commit()
+    invalidate_user(str(event.user_id))
     db.refresh(event)
     return event
 
