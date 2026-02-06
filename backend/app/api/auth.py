@@ -9,6 +9,7 @@ from backend.app.schemas.auth import SignupRequest, LoginRequest, VerifyRequest
 from backend.app.core.security import hash_password, verify_password, create_access_token
 from backend.app.core.deps import get_current_user
 from backend.app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
+from backend.app.core.email import send_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -43,7 +44,8 @@ def signup(data: SignupRequest, db: Session = Depends(get_db)):
 
     print(f"📧 OTP for {data.email}: {otp}")
 
-    return {"msg": "User created. Check console for OTP."}
+
+    return {"message": "Signup successful: {otp}"}
 
 
 # ---------------- VERIFY ----------------

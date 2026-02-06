@@ -10,11 +10,9 @@ from backend.app.services.realtime_boost import get_recent_boosts
 # 1️⃣ LOAD MODELS
 # =========================
 
-# Collaborative Filtering model
 with open("ml/artifacts/cf_model.pkl", "rb") as f:
     cf_model = pickle.load(f)
 
-# Content similarity matrix
 with open("ml/artifacts/content_similarity.pkl", "rb") as f:
     similarity = pickle.load(f)
 
@@ -29,7 +27,6 @@ ratings = pd.read_csv(
     names=["user", "item", "rating", "timestamp"]
 )
 
-# Zero-index IDs for implicit
 ratings["user"] -= 1
 ratings["item"] -= 1
 
@@ -44,14 +41,29 @@ matrix = coo_matrix(
 
 
 # =========================
+# 🔑 HELPER: MAP UUID → INDEX
+# =========================
+
+def map_user(user_id):
+    """
+    Convert UUID/string user_id into valid matrix index
+    """
+    if isinstance(user_id, str):
+        return abs(hash(user_id)) % matrix.shape[0]
+    return int(user_id) % matrix.shape[0]
+
+
+# =========================
 # 3️⃣ CF ONLY RECOMMENDER
 # =========================
 
-def recommend_for_user(user_id: int, k: int = 10):
+def recommend_for_user(user_id, k: int = 10):
+
+    user_index = map_user(user_id)
 
     recs, _ = cf_model.recommend(
-        user_id,
-        matrix[user_id],
+        user_index,
+        matrix[user_index],
         N=k
     )
 
@@ -63,17 +75,19 @@ def recommend_for_user(user_id: int, k: int = 10):
 # =========================
 
 def hybrid_recommend(
-    user_id: int,
+    user_id,
     k: int = 10,
     alpha: float = 0.7
 ):
+
+    user_index = map_user(user_id)
 
     # --------------------
     # CF SCORES
     # --------------------
     cf_items, cf_scores = cf_model.recommend(
-        user_id,
-        matrix[user_id],
+        user_index,
+        matrix[user_index],
         N=50
     )
 
@@ -87,7 +101,8 @@ def hybrid_recommend(
     # --------------------
     # CONTENT SCORES
     # --------------------
-    user_data = ratings[ratings.user == user_id]
+    user_data = ratings[ratings.user == user_index]
+
     liked_items = user_data[user_data.rating >= 4]["item"].tolist()
 
     cb_scores = {}

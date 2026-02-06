@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from backend.app.services.ml_service import recommend_for_user
 from backend.app.services.ml_service import hybrid_recommend
 from backend.app.services.cache import get_cache, set_cache
 from backend.app.services.realtime_boost import get_recent_boosts
 router = APIRouter(prefix="/ml", tags=["ml-recommendations"])
+from backend.app.core.deps import get_current_user
 
 @router.get("/recommendations")
 def ml_recs(user_id: int = Query(...), k: int = 10):
@@ -16,8 +17,7 @@ def ml_recs(user_id: int = Query(...), k: int = 10):
 #     return {"user_id": user_id, "recommendations": items}
 
 @router.get("/hybrid")
-def hybrid(user_id: int, k: int = 10):
-
+def hybrid(user_id: str, k: int = 10):
     cache_key = f"hybrid:{user_id}:{k}"
 
     cached = get_cache(cache_key)
@@ -34,6 +34,7 @@ def hybrid(user_id: int, k: int = 10):
     set_cache(cache_key, response)
 
     return response
+
 
 @router.get("/debug-boosts")
 def debug_boosts(user_id: str):
