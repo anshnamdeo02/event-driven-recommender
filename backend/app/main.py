@@ -17,6 +17,7 @@ app.include_router(events_router)
 app.include_router(recommendations_router)
 app.include_router(ml_router)
 app.include_router(auth.router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
